@@ -254,8 +254,8 @@ sequenceDiagram
 
 | Role                              | Definition                                                                                  | Primary Interface |
 | --------------------------------- | ------------------------------------------------------------------------------------------- | ----------------- |
-| **Guardian (Parent)**             | Posts tuitions, selects teachers, pays, gives feedback, requests refunds.                   | Web + Mobile App  |
-| **Teacher (Tutor)**               | Applies to tuitions, communicates with guardians, delivers classes, earns payments & bonus. | Web + Mobile App  |
+| **Guardian (Parent)**             | Posts tuitions, selects teachers, pays, gives feedback, requests refunds.                   | Mobile App  |
+| **Teacher (Tutor)**               | Applies to tuitions, communicates with guardians, delivers classes, earns payments & bonus. | Mobile App  |
 | **CRO**                           | Customer/Conversion/Relationship Officer; owns assigned tuition pipeline, drives lifecycle. | Web Console       |
 | **Admin / Manager / Super Admin** | Configures rules, manages users, approves refunds, views analytics.                         | Web Admin Panel   |
 
