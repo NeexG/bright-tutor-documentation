@@ -774,6 +774,12 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
 
 ## 10. Status Engine
 
+This section defines the **canonical status machine** for tuition lifecycle.
+
+- The status list remains configurable by Admin and is kept at 10 baseline statuses.
+- Steps such as `tuition_details`, `message_to_teacher`, `post_in_social_media`, `send_details`, `response`, `feedback`, and payment/refund processing are modeled as **tasks/events** inside statuses, not separate terminal statuses.
+- Lifecycle starts when CRO/Manager creates tuition from inbound IP call flow.
+
 ### 10.1 Status List (Baseline – Configurable)
 
 | Code                      | Name                      | Badge/Color | Terminal |
@@ -791,16 +797,16 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
 
 ### 10.2 Status Transition Matrix (Example)
 
-| From \ To        | SHORTLISTED | CONTACT_SHARED | DEMO_SCHEDULED | DECISION_PENDING | CONFIRMED | CANCELLED | RUNNING | COMPLETED |
-| ---------------- | ----------- | -------------- | -------------- | ---------------- | --------- | --------- | ------- | --------- |
-| CREATED          | ✅          | —              | —              | —                | —         | ✅        | —       | —         |
-| SHORTLISTED      | —           | ✅             | ✅             | —                | —         | ✅        | —       | —         |
-| CONTACT_SHARED   | ✅          | —              | ✅             | ✅               | —         | ✅        | —       | —         |
-| DEMO_SCHEDULED   | ✅          | —              | —              | ✅               | —         | ✅        | —       | —         |
-| DECISION_PENDING | ✅          | —              | —              | —                | ✅        | ✅        | —       | —         |
-| CONFIRMED        | —           | —              | —              | —                | —         | ✅        | ✅      | —         |
-| PAYMENT_PENDING  | —           | —              | —              | —                | —         | —         | ✅      | —         |
-| RUNNING          | —           | —              | —              | —                | —         | ✅        | —       | ✅        |
+| From \ To                  | SHORTLISTED | CONTACT_SHARED | DEMO_SCHEDULED | GUARDIAN_DECISION_PENDING | CONFIRMED | CANCELLED | RUNNING | COMPLETED |
+| -------------------------- | ----------- | -------------- | -------------- | ------------------------- | --------- | --------- | ------- | --------- |
+| CREATED                    | ✅          | —              | —              | —                         | —         | ✅        | —       | —         |
+| SHORTLISTED                | —           | ✅             | ✅             | —                         | —         | ✅        | —       | —         |
+| CONTACT_SHARED             | ✅          | —              | ✅             | ✅                        | —         | ✅        | —       | —         |
+| DEMO_SCHEDULED             | ✅          | —              | —              | ✅                        | —         | ✅        | —       | —         |
+| GUARDIAN_DECISION_PENDING  | ✅          | —              | —              | —                         | ✅        | ✅        | —       | —         |
+| CONFIRMED                  | —           | —              | —              | —                         | —         | ✅        | ✅      | —         |
+| PAYMENT_PENDING            | —           | —              | —              | —                         | —         | —         | ✅      | —         |
+| RUNNING                    | —           | —              | —              | —                         | —         | ✅        | —       | ✅        |
 
 _Actual matrix is configurable in Admin._
 
@@ -836,6 +842,50 @@ stateDiagram-v2
   1. All **mandatory** tasks for the current status are **completed** (or skipped where allowed).
   2. No **lock** is active on the tuition (or CRO/system scope) unless **Admin override** with reason.
   3. Transition is **allowed** in the configured matrix.
+
+### 10.5 Draft Workflow Mapping (IP Call -> Success)
+
+The following mapping aligns the draft operational flow with the canonical status engine.
+
+| Draft Step (Operational) | Engine Representation | Typical Owner | Protocol / SLA |
+| ------------------------ | -------------------- | ------------- | -------------- |
+| `tuition_details` (from inbound IP call; assign CRO; call summary/record) | Tuition create event -> `CREATED` with mandatory setup tasks | CRO / Manager | Immediate on create |
+| `message_to_teacher` (SMS, app inbox, app push) | Outreach tasks under `CREATED` or `SHORTLISTED` | CRO | Configurable |
+| `post_in_social_media` (FB, Insta, WhatsApp, Telegram) | Outreach tasks under `CREATED` | CRO | Configurable |
+| `shortlisted` | Status -> `SHORTLISTED` | CRO | Per transition rule |
+| `send_details` (share tutor CV + guardian/teacher details) | Task bundle under `SHORTLISTED` -> transition to `CONTACT_SHARED` | CRO | Immediate / configurable |
+| `response` (call guardian, no impact, other notes, switch teacher) | Task + call outcome logs under `CONTACT_SHARED` / `DEMO_SCHEDULED`; may loop back to `SHORTLISTED` | CRO | `RESPONSE_15H`, `GUARDIAN_DECIDE` |
+| `feedback` (2nd class, 3rd class for guardian + teacher) | Mandatory feedback tasks under `RUNNING` | Guardian / Teacher / CRO | `FEEDBACK_2ND_CLASS` (7d), `FEEDBACK_3RD_CLASS` (14d) |
+| `guardian_decision` (confirm / next teacher / cancel) | Status -> `GUARDIAN_DECISION_PENDING` then `CONFIRMED` or back to `SHORTLISTED` or `CANCELLED` | Guardian + CRO | `GUARDIAN_DECIDE` (30d) |
+| `payment` (7d / 30d / partial / clear, SSLCommerz or manual Txn ID) | Status -> `PAYMENT_PENDING`; payment events drive move to `RUNNING` | Guardian / Finance / Admin | `PAYMENT_7D` (7-15d), `PAYMENT_30D` (30-44d) |
+| `refund` (application -> verify -> clear/success) | Refund sub-state machine (see Section 12.3); does not replace tuition core status | Guardian / CRO / Admin | `REFUND_VERIFY` (15d) |
+| `successful` | Tuition terminal success -> `COMPLETED` | System / CRO | End of lifecycle |
+
+### 10.6 Lifecycle Flow (Operational + Status)
+
+```mermaid
+flowchart LR
+  A[Inbound IP Call] --> B[Create Tuition Details]
+  B --> C[CREATED]
+  C --> D[Message to Teachers]
+  C --> E[Post in Social Media]
+  D --> F[SHORTLISTED]
+  E --> F
+  F --> G[Send Details / CV]
+  G --> H[CONTACT_SHARED]
+  H --> I[DEMO_SCHEDULED]
+  H --> J[GUARDIAN_DECISION_PENDING]
+  I --> J
+  J --> K[CONFIRMED]
+  J --> F
+  J --> X[CANCELLED]
+  K --> L[PAYMENT_PENDING]
+  K --> M[RUNNING]
+  L --> M
+  M --> N[Feedback 2nd/3rd Class Tasks]
+  N --> O[COMPLETED]
+  M --> X
+```
 
 ---
 
