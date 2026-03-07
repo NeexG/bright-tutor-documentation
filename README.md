@@ -18,14 +18,16 @@
 
 | Part  | Section    | Description                                                        |
 | ----- | ---------- | ------------------------------------------------------------------ |
-| **A** | 1–2        | Introduction, Scope, Product Vision & Positioning                  |
-| **B** | 3          | Stakeholders, Roles, RBAC Permission Matrix, Role–Module Mapping   |
-| **C** | 4          | System Design, Architecture, Tech Stack Justification, Deployment  |
-| **D** | 5–9        | Module Overview, Guardian/Teacher/CRO/Admin Detailed Requirements  |
-| **E** | 10–12      | Status Engine, Next Task Engine, Payment & Refund, Bonus Slabs     |
-| **F** | 13–14      | User Stories (by role), User Journeys & Sequence/Flow Diagrams     |
-| **G** | 15–17      | Non-Functional Requirements, Delivery Roadmap, Acceptance Criteria |
-| **H** | Appendices | Glossary, References, Revision History                             |
+| **A** | 1          | Introduction, MVP/Lead Capture, Scope Summary                      |
+| **B** | 2–3        | Status Engine, Task Engine                                         |
+| **C** | 4          | Product Vision & Positioning                                       |
+| **D** | 5          | Stakeholders, Roles, RBAC Permission Matrix, Role–Module Mapping   |
+| **E** | 6          | System Design, Architecture, Tech Stack Justification, Deployment  |
+| **F** | 7–11       | Module Overview, Guardian/Teacher/CRO/Admin Detailed Requirements  |
+| **G** | 12         | Payment & Refund Engine, Bonus Slabs, Lock Rules                   |
+| **H** | 13–14      | User Stories (by role), User Journeys & Sequence/Flow Diagrams     |
+| **I** | 15–17      | Non-Functional Requirements, Delivery Roadmap, Acceptance Criteria |
+| **J** | Appendices | Glossary, References, Revision History                             |
 
 ---
 
@@ -69,7 +71,7 @@ It consolidates:
 
 **Audience:** Client, Product Owners, Designers, Engineers, QA, DevOps.
 
-### 1.3 MVP / Phase-01 – Client-Provided Integrations & Current Process
+### 1.2 MVP / Phase-01 – Client-Provided Integrations & Current Process
 
 For **MVP/Phase-01**, the client will provide the following external providers and integrations. These replace the current manual process (Excel/sheets) and are required for go-live.
 
@@ -91,7 +93,7 @@ For **MVP/Phase-01**, the client will provide the following external providers a
    - **Primary phone** = main contact (e.g. personal).
    - **Alternate phone** = optional/second number (if provided).
 5. Manager/CRO (or designated role) fills the rest of the tuition form: student(s), class, subjects, location, schedule, salary, other requirements, etc.
-6. After **all required info is filled**, the form is submitted → tuition is **Created** in the system (status **CREATED**), and the tuition enters the CRO pipeline for broadcast, shortlisting, and further steps as per the master lifecycle.
+6. After **all required info is filled**, the form is submitted → tuition is created with **9-digit Tuition ID** in status **TUITION_DETAILS** ([Section 2](#2-status-engine)), and enters the CRO pipeline for broadcast, shortlisting, and further steps as per the master lifecycle.
 
 This flow ensures that every inbound lead from a phone call is captured in the platform with the correct guardian number (primary/alternate) for future call recognition and communication.
 
@@ -114,11 +116,11 @@ sequenceDiagram
   CRO->>Form: Set primary and optional phone
   CRO->>Form: Fill student location schedule salary etc
   CRO->>Form: Submit
-  Form->>System: Create tuition CREATED
+  Form->>System: Create tuition in status TUITION_DETAILS
   System->>CRO: Tuition in pipeline
 ```
 
-### 1.4 Tuition Creation, Suggestions & CRO Handover (MVP)
+### 1.3 Tuition Creation, Suggestions & CRO Handover (MVP)
 
 - **Source of tuition creation in MVP**
   - **Primary source**: Admin / CRO console via inbound IP call and manual form entry by Manager/CRO (as described above).
@@ -141,7 +143,7 @@ sequenceDiagram
     - Assigns the tuition to a **CRO owner** (e.g. Tanha, Bushra) based on load‑balancing/business rules.
     - Sets attributes such as:
       - **Tuition ID** (unique, display everywhere).
-      - **Lifecycle status** (e.g. Pending/Created, Processing, Confirmed, Running, Paused, Cancelled).
+      - **Lifecycle status** (starts at **TUITION_DETAILS**; see [Section 2](#2-status-engine) for full lifecycle).
       - **Active/Inactive** flag, **Featured** flag (if promoted), **view count**, and **comment count**.
     - Opens the **Tuition Cockpit** for that CRO with all top tabs available (Info, Suggestions, Applications, Shortlist, Comments, Tasks, Call Records, Guardian Chat, Tutor Chat, Tutor↔Guardian Chat, Updates/Logs, Attendance).
 
@@ -164,13 +166,13 @@ sequenceDiagram
   Guardian->>Manager: Reply with details
   Manager->>Console: Fill tuition data (student, class, area, schedule, salary, notes)
   Manager->>Console: Submit tuition
-  Console->>Engine: Create tuition (CREATED) + request suggestions & post text
+  Console->>Engine: Create tuition (status TUITION_DETAILS) + request suggestions & post text
   Engine-->>Console: Suggested teacher list + social media content
   Console->>Console: Assign CRO owner (e.g. Tanha/Bushra)
   Console-->>CRO: Tuition appears in Tuition Cockpit with tabs (Info, Suggestions, Applications, Shortlist, Comments, Tasks, Rec, G Chat, T Chat, T2G Chat, Update, Attendance)
 ```
 
-### 1.2 Scope Summary
+### 1.4 Scope Summary
 
 | Category         | In Scope (Phase 1)                                                                                         | Out of Scope (Phase 1)                 |
 | ---------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------- |
@@ -186,13 +188,796 @@ sequenceDiagram
 
 ---
 
-## 2. Product Vision & Positioning
+### 1.5 Tuition Lifecycle At-a-Glance
 
-### 2.1 Vision Statement
+The **Status Engine** defines the **10-status operational lifecycle** that replaces the current manual Excel/sheets process:
+
+**Status Flow:**  
+**TUITION_DETAILS** (IP call → create) → **MESSAGE_TO_TEACHERS** (broadcast SMS/app) → **POST_IN_SOCIAL_MEDIA** (FB/Insta/WhatsApp/Telegram) → **SHORTLISTED** (review applications) → **SEND_DETAILS** (share CV) → **RESPONSE** (call guardian) → **FEEDBACK** (2nd/3rd class) → **GUARDIAN_DECISION** (confirm/next/cancel) → **PAYMENT** (7d/30d/running) → **COMPLETED** ✅
+
+**Key Principles:**
+- Each major CRO operational step is an **explicit status** (not a task).
+- Every status has **mandatory tasks** with **time protocols** (15h, 7d, 14d, 30d, 44d).
+- CRO cannot advance status unless tasks complete, transition allowed, and no lock active.
+- **Task Engine** auto-generates next-task checklists per status.
+
+**In this document:** Full details on all 10 statuses, transition matrix, tasks, and protocols are documented in **Part B: Status & Task Lifecycle Engines (Sections 2–3)**.
+
+---
+
+
+# PART B — STATUS & TASK LIFECYCLE ENGINES
+
+📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
+
+## 2. Status Engine
+
+This section defines the **canonical status machine** for the tuition lifecycle, replacing the current manual Google Sheets process with an automated, status-driven workflow.
+
+**Key Principles:**
+
+- Each major operational step in the CRO pipeline is modeled as an **explicit status** (not a task).
+- Lifecycle is divided into **Publish Lifecycle** (statuses 1–3) and **Refining & Alignment** (statuses 4–8), followed by **Payment & Execution** (statuses 9–10) and **Terminal** states.
+- The status list is **configurable by Admin** and extended with time protocols and advancement rules.
+- Lifecycle starts when **CRO/Manager creates tuition from inbound IP call** flow (caller number auto-populated; primary/alternate phone set; tuition enters **TUITION_DETAILS** status).
+
+---
+
+### 2.1 Status List (Baseline – Configurable)
+
+This is the **10-status operational lifecycle** that matches the draft flow and current business process.
+
+| # | Code | Name | Phase | Badge/Color | Terminal | Description |
+|---|------|------|-------|-------------|----------|-------------|
+| 1 | TUITION_DETAILS | Tuition Details | Publish | Blue | No | IP call received; tuition created with full info; CRO assigned; call record/summary stored; auto-generated suggested tutors visible. |
+| 2 | MESSAGE_TO_TEACHERS | Message to Teachers | Publish | Cyan | No | CRO broadcasts tuition via SMS, app inbox, app push notification to available/suggested teachers; teachers see in app and may apply. |
+| 3 | POST_IN_SOCIAL_MEDIA | Post in Social Media | Publish | Purple | No | CRO posts tuition to Facebook, Instagram, WhatsApp, Telegram (template-based, auto-generated content editable). |
+| 4 | SHORTLISTED | Shortlisted | Refining | Yellow | No | After receiving applications, CRO creates shortlist of candidate tutors. |
+| 5 | SEND_DETAILS | Send Details (CV) | Refining | Orange | No | CRO sends shortlisted tutor CV/profile link to guardian; shares guardian contact to tutor (or vice versa). |
+| 6 | RESPONSE | Response / Follow-Up | Refining | Amber | No | CRO calls guardian, collects response summary (demo feedback, meeting arranged, no impact, switch teacher, other); time protocols (15h, 30d) enforced. |
+| 7 | FEEDBACK | Feedback (2nd/3rd Class) | Refining | Teal | No | Guardian + Teacher submit feedback after 2nd class (7d protocol) and 3rd class (14d protocol); CRO follows up; may loop to next teacher or confirm. |
+| 8 | GUARDIAN_DECISION | Guardian Decision | Refining | Indigo | No | Guardian makes final decision: Confirm tutor / Request next teacher / Cancel tuition. |
+| 9 | PAYMENT | Payment & Running | Payment | Green | No | Payment collection (7d, 30d, partial, clear) via SSLCommerz or manual Txn ID; once sufficient payment received, classes **run** (RUNNING sub-state). Refund application/verify/clear handled here. |
+| 10 | COMPLETED | Successful | Terminal | Green (dark) | Yes | Tuition successfully completed; all classes done, feedback collected, payment cleared. |
+| — | CANCELLED | Cancelled | Terminal | Red | Yes | Tuition cancelled at any stage (guardian/teacher/CRO/system); reason logged. |
+
+**Note on RUNNING:** In this model, **RUNNING** is represented as a sub-state or flag within **PAYMENT** status (when `payment_state = 'running'`). Alternatively, if you prefer RUNNING as a separate status, the list becomes 11 statuses (PAYMENT → RUNNING → COMPLETED). For now, we keep it at 10 with RUNNING embedded in PAYMENT.
+
+---
+
+### 2.2 Status Phases
+
+| Phase | Statuses | Owner | Description |
+|-------|----------|-------|-------------|
+| **Publish Lifecycle** | 1–3: TUITION_DETAILS, MESSAGE_TO_TEACHERS, POST_IN_SOCIAL_MEDIA | CRO | Creation, outreach, broadcasting to teachers and social channels. |
+| **Refining & Alignment** | 4–7: SHORTLISTED, SEND_DETAILS, RESPONSE, FEEDBACK | CRO + Guardian + Teacher | Shortlisting, CV sharing, guardian response, demo/class feedback. |
+| **Decision & Commitment** | 8: GUARDIAN_DECISION | Guardian + CRO | Final confirm/next/cancel decision. |
+| **Payment & Execution** | 9: PAYMENT (includes RUNNING) | Guardian + Finance + Teacher | Payment collection, classes running, refund handling. |
+| **Terminal** | 10: COMPLETED, CANCELLED | System / CRO | End states (success or failure). |
+
+---
+
+### 2.3 Status Transition Matrix (Configurable)
+
+This matrix shows **allowed transitions** (✅) between statuses. Admin can configure this in the console.
+
+| From \ To | MESSAGE_TO_TEACHERS | POST_IN_SOCIAL_MEDIA | SHORTLISTED | SEND_DETAILS | RESPONSE | FEEDBACK | GUARDIAN_DECISION | PAYMENT | COMPLETED | CANCELLED |
+|-----------|---------------------|----------------------|-------------|--------------|----------|----------|-------------------|---------|-----------|-----------|
+| **TUITION_DETAILS** | ✅ | ✅ | ✅¹ | — | — | — | — | — | — | ✅ |
+| **MESSAGE_TO_TEACHERS** | — | ✅ | ✅ | — | — | — | — | — | — | ✅ |
+| **POST_IN_SOCIAL_MEDIA** | — | — | ✅ | — | — | — | — | — | — | ✅ |
+| **SHORTLISTED** | ✅² | — | — | ✅ | ✅³ | — | — | — | — | ✅ |
+| **SEND_DETAILS** | — | — | ✅² | — | ✅ | ✅³ | — | — | — | ✅ |
+| **RESPONSE** | — | — | ✅⁴ | ✅⁴ | — | ✅ | ✅ | — | — | ✅ |
+| **FEEDBACK** | — | — | ✅⁴ | — | ✅ | — | ✅ | — | — | ✅ |
+| **GUARDIAN_DECISION** | — | — | ✅⁴ | — | — | — | — | ✅ | — | ✅ |
+| **PAYMENT** | — | — | — | — | — | ✅⁵ | — | — | ✅ | ✅ |
+| **COMPLETED** | — | — | — | — | — | — | — | — | — | — |
+| **CANCELLED** | — | — | — | — | — | — | — | — | — | — |
+
+**Footnotes:**
+1. ¹ Direct jump to SHORTLISTED if tutor applications arrive before broadcast steps complete (rare).
+2. ² Loop back to earlier broadcast/shortlist if additional outreach needed.
+3. ³ Fast-forward to RESPONSE or FEEDBACK if demo/class already started (CRO discretion).
+4. ⁴ "Next Teacher" action: loops back to SHORTLISTED or SEND_DETAILS for new tutor selection.
+5. ⁵ During PAYMENT/RUNNING, if issues arise, collect additional feedback before advancing to COMPLETED.
+
+**Enforcement:** System shall enforce transition rules; CRO cannot advance unless:
+- Transition is ✅ in matrix.
+- All **mandatory tasks** for current status are completed (or skipped with reason).
+- No **lock** is active (or Admin override with audit reason).
+
+---
+
+### 2.4 Status Lifecycle Flow (State Diagram)
+
+```mermaid
+stateDiagram-v2
+  [*] --> TUITION_DETAILS: IP call → Create
+  
+  TUITION_DETAILS --> MESSAGE_TO_TEACHERS: Broadcast SMS/App
+  TUITION_DETAILS --> POST_IN_SOCIAL_MEDIA: Post social
+  TUITION_DETAILS --> SHORTLISTED: Direct (rare)
+  TUITION_DETAILS --> CANCELLED: Cancel
+  
+  MESSAGE_TO_TEACHERS --> POST_IN_SOCIAL_MEDIA: Also post
+  MESSAGE_TO_TEACHERS --> SHORTLISTED: Applications → Shortlist
+  MESSAGE_TO_TEACHERS --> CANCELLED
+  
+  POST_IN_SOCIAL_MEDIA --> SHORTLISTED: Applications → Shortlist
+  POST_IN_SOCIAL_MEDIA --> CANCELLED
+  
+  SHORTLISTED --> SEND_DETAILS: Send CV
+  SHORTLISTED --> RESPONSE: Call guardian
+  SHORTLISTED --> MESSAGE_TO_TEACHERS: Re-broadcast
+  SHORTLISTED --> CANCELLED
+  
+  SEND_DETAILS --> RESPONSE: Call for response
+  SEND_DETAILS --> FEEDBACK: Demo started
+  SEND_DETAILS --> SHORTLISTED: Next teacher
+  SEND_DETAILS --> CANCELLED
+  
+  RESPONSE --> FEEDBACK: Demo scheduled/done
+  RESPONSE --> GUARDIAN_DECISION: Decision ready
+  RESPONSE --> SEND_DETAILS: Re-send CV
+  RESPONSE --> SHORTLISTED: Switch teacher
+  RESPONSE --> CANCELLED
+  
+  FEEDBACK --> GUARDIAN_DECISION: Feedback collected
+  FEEDBACK --> RESPONSE: Follow-up call
+  FEEDBACK --> SHORTLISTED: Next teacher (negative feedback)
+  FEEDBACK --> CANCELLED
+  
+  GUARDIAN_DECISION --> PAYMENT: Confirm tutor
+  GUARDIAN_DECISION --> SHORTLISTED: Next teacher
+  GUARDIAN_DECISION --> CANCELLED: Cancel
+  
+  PAYMENT --> FEEDBACK: Issue → collect feedback
+  PAYMENT --> COMPLETED: Payment cleared + classes done
+  PAYMENT --> CANCELLED: Refund/cancel
+  
+  COMPLETED --> [*]
+  CANCELLED --> [*]
+```
+
+---
+
+### 2.5 Detailed Status Descriptions & Actions
+
+#### Status 1: TUITION_DETAILS
+
+**Entry:** IP call received from guardian; Manager/CRO creates tuition.
+
+**Key Actions:**
+- Caller number **auto-populated** in form (primary phone).
+- CRO asks: "Personal or optional number?" → set Primary/Alternate.
+- Fill all tuition fields: student(s), class, subjects, curriculum, medium, location, schedule, salary range, special requirements, etc.
+- Submit → tuition created with **9-digit Tuition ID**.
+- **Call record/summary stored** for playback.
+- System **auto-generates suggested tutor list** (filter by class, subject, medium, area).
+- CRO assigned (or auto-assigned by system rules).
+
+**Mandatory Tasks:**
+- Capture tuition details (all required fields).
+- Store call record.
+- Assign CRO.
+
+**Next Status Options:** MESSAGE_TO_TEACHERS, POST_IN_SOCIAL_MEDIA, SHORTLISTED (rare), CANCELLED.
+
+**Protocol:** Immediate (no SLA; tuition must be created within call session or shortly after).
+
+---
+
+#### Status 2: MESSAGE_TO_TEACHERS
+
+**Entry:** CRO chooses to broadcast tuition to teachers.
+
+**Key Actions:**
+- CRO selects teacher list (auto-suggested or custom filter: subject, area, medium, verified badge).
+- System sends:
+  - **Mobile SMS** (via client SMS provider, e.g. Teletalk).
+  - **App inbox message** (in-app notification center).
+  - **App push notification** (Firebase Cloud Messaging).
+- Teachers open app → see tuition card → **Apply**, **Comment**, **Share**, or **Chat** (if enabled).
+- Applications flow into **Applications** tab in Tuition Cockpit.
+
+**Mandatory Tasks:**
+- At least one broadcast channel used (SMS or app).
+- Message template populated with tuition ID, class, subject, area, salary.
+
+**Next Status Options:** POST_IN_SOCIAL_MEDIA, SHORTLISTED (when applications arrive), CANCELLED.
+
+**Protocol:** RESPONSE_15H (15 hours) – teachers expected to respond within 15h; if no response, CRO may re-broadcast or move to social.
+
+---
+
+#### Status 3: POST_IN_SOCIAL_MEDIA
+
+**Entry:** CRO chooses to post tuition on social media channels.
+
+**Key Actions:**
+- System **auto-generates social media post** text (tuition summary: class, subject, area, salary, contact method).
+- CRO reviews/edits post in **Suggestions** tab.
+- CRO clicks **Publish** → post goes to:
+  - **Facebook** page/group (via Graph API or manual post with copy).
+  - **Instagram** (via API or manual).
+  - **WhatsApp** groups/status (manual or via Business API).
+  - **Telegram** channels (via Bot API).
+- External applicants may contact via social → CRO manually adds them to Applications or Shortlist.
+
+**Mandatory Tasks:**
+- Post to at least one social channel.
+- Log post date/time and channel in tuition record.
+
+**Next Status Options:** SHORTLISTED (applications come in), CANCELLED.
+
+**Protocol:** Configurable (typically 24–48h to gather social responses before moving to shortlist).
+
+---
+
+#### Status 4: SHORTLISTED
+
+**Entry:** Applications received (from MESSAGE_TO_TEACHERS, POST_IN_SOCIAL_MEDIA, or direct Teacher app job board search); CRO reviews and creates shortlist.
+
+**Key Actions:**
+- CRO opens **Applications** tab → sees all applicants with profile, rating, experience.
+- CRO selects top candidates → **Add to Shortlist**.
+- **Shortlist** tab now shows 2–5 (configurable) tutors.
+- CRO may reorder, promote, or remove tutors from shortlist.
+- CRO may call tutors to confirm availability.
+
+**Mandatory Tasks:**
+- At least 1 tutor added to shortlist (or mark "no suitable applicants" and loop back).
+
+**Next Status Options:** SEND_DETAILS (proceed to share CV with guardian), RESPONSE (call guardian first), MESSAGE_TO_TEACHERS (re-broadcast if shortlist insufficient), CANCELLED.
+
+**Protocol:** No strict SLA; driven by application arrival time and CRO workload.
+
+---
+
+#### Status 5: SEND_DETAILS
+
+**Entry:** CRO ready to share shortlisted tutor(s) profile/CV with guardian (and vice versa).
+
+**Key Actions:**
+- CRO selects tutor(s) from **Shortlist** tab → **Send Details**.
+- System sends **tutor CV/profile link** to guardian via:
+  - SMS to primary/alternate phone.
+  - App notification (if guardian has app).
+  - Email (if configured).
+- Simultaneously (or sequentially based on rule), CRO may:
+  - Share **guardian contact (primary phone)** to tutor (via SMS/app).
+  - Enable **T2G (Tutor-Guardian-CRO) chat** if allowed by status rule.
+- Guardian reviews tutor profile; tutor reviews guardian summary.
+
+**Mandatory Tasks:**
+- CV/details sent to guardian (receipt logged).
+- Guardian contact shared to tutor (if configured).
+
+**Next Status Options:** RESPONSE (call guardian for feedback on CV), FEEDBACK (if demo already scheduled), SHORTLISTED (guardian rejects all, need new shortlist), CANCELLED.
+
+**Protocol:** RESPONSE_15H or GUARDIAN_DECIDE (15h to 30d depending on guardian availability).
+
+---
+
+#### Status 6: RESPONSE
+
+**Entry:** CRO calls guardian to collect response summary after CV shared or demo scheduled.
+
+**Key Actions:**
+- CRO makes **outbound call** to guardian (via IP call provider).
+- After call ends, **modal pops up** in CRO Console → CRO logs:
+  - **Call outcome:** No result, Will confirm later, Meeting scheduled, Demo arranged, No impact, Guardian will decide later, Other (free text in comment box).
+  - **Next follow-up date** (from calendar picker; system attaches time protocol, e.g. 30d if "will decide later").
+- If outcome = **"Switch Teacher"**, system may allow transition back to SHORTLISTED.
+- CRO may also send **app message to teacher** for status update (with RESPONSE_15H protocol).
+- If no response after protocol expires, system marks tuition **Pending** (exceeds date) in ribbon.
+
+**Mandatory Tasks:**
+- Call made and outcome logged (or skippable with reason if guardian unreachable after 3 attempts).
+- Follow-up date set if decision deferred.
+
+**Next Status Options:** FEEDBACK (demo happened, collect feedback), GUARDIAN_DECISION (decision ready), SEND_DETAILS (resend CV), SHORTLISTED (switch teacher), CANCELLED.
+
+**Protocol:** RESPONSE_15H (app/SMS response), GUARDIAN_DECIDE (30d for guardian to confirm if "will decide later").
+
+---
+
+#### Status 7: FEEDBACK
+
+**Entry:** Classes started (2nd or 3rd class reached); time to collect satisfaction feedback.
+
+**Key Actions:**
+- System triggers **feedback flow** automatically based on class count and time protocol:
+  - **After 2nd class (FEEDBACK_2ND_CLASS protocol = 7 days from start):** CRO calls guardian + teacher; collects satisfaction, any issues, continuation intent.
+  - **After 3rd class (FEEDBACK_3RD_CLASS protocol = 14 days from start):** Follow-up feedback; confirm continuation or switch/terminate.
+- Guardian feedback options:
+  - **Continue** (satisfied) → proceed to GUARDIAN_DECISION (confirm) or stay in PAYMENT/RUNNING.
+  - **Next Teacher** (not satisfied) → loop back to SHORTLISTED.
+  - **Cancel** → CANCELLED.
+- Teacher feedback: satisfaction, guardian cooperation, payment status, any issues.
+- CRO logs all feedback in **Comments** tab and may attach to tuition timeline.
+
+**Mandatory Tasks:**
+- At least one feedback round completed (2nd class or 3rd class).
+- Guardian + Teacher responses logged.
+
+**Next Status Options:** GUARDIAN_DECISION (positive feedback → confirm), RESPONSE (additional follow-up call needed), SHORTLISTED (negative feedback → switch teacher), CANCELLED.
+
+**Protocol:** FEEDBACK_2ND_CLASS (7d), FEEDBACK_3RD_CLASS (14d).
+
+---
+
+#### Status 8: GUARDIAN_DECISION
+
+**Entry:** Guardian ready to make final decision after demo, feedback, and interaction with tutor.
+
+**Key Actions:**
+- CRO collects guardian's final decision (via call, app, or chat):
+  - **Confirm tutor:** Guardian agrees to proceed with this tutor; tuition advances to PAYMENT.
+  - **Next Teacher:** Guardian wants to try another tutor; loop back to SHORTLISTED.
+  - **Cancel tuition:** Guardian no longer needs tuition; move to CANCELLED (reason logged).
+- If decision = **Confirm**, system may:
+  - Change tuition flag to **Confirmed** (visible in ribbon metrics: Confirmed count).
+  - Unlock **Guardian-Teacher direct chat/contact** (if not already unlocked).
+  - Trigger **payment flow** (advance to PAYMENT status).
+
+**Mandatory Tasks:**
+- Guardian decision captured and logged.
+
+**Next Status Options:** PAYMENT (confirmed), SHORTLISTED (next teacher), CANCELLED.
+
+**Protocol:** GUARDIAN_DECIDE (30d max; if exceeds, tuition flagged as **Pending** in ribbon).
+
+---
+
+#### Status 9: PAYMENT (includes RUNNING)
+
+**Entry:** Guardian confirmed tutor; payment collection begins; classes run.
+
+**Key Actions:**
+- **Payment types** (per Section 12):
+  - **Payment 7 Days** (PAYMENT_7D protocol = 7–15 days from confirmation): first instalment or trial period payment.
+  - **Payment 30 Days** (PAYMENT_30D protocol = 30–44 days): monthly/end-of-month payment.
+  - **Partial Payment:** custom amount, custom due date (entered by CRO/Finance).
+  - **Payment Clear:** all dues cleared; total_paid ≥ total_due.
+- **Payment methods:**
+  - **SSLCommerz** (auto): Guardian pays online via app/web; payment notification received in real-time.
+  - **Manual (Transaction ID):** Guardian pays offline (bank transfer, cash to teacher); CRO/Finance records Txn ID, amount, date/time in system.
+- Once payment received (7d or partial), classes officially **start** (RUNNING sub-state/flag set to `true`).
+- **Attendance:** Teacher marks attendance after each class (in Teacher app); visible in **Attendance** tab in Tuition Cockpit.
+- **Refund handling** (if guardian requests refund):
+  - Guardian submits **Refund Application** (amount, reason) in app/web.
+  - Status: Applied → Verifying (CRO/Finance, REFUND_VERIFY protocol = 15d) → Approved/Rejected (Admin).
+  - If Approved → **Refund Clear** → Successful (payment disbursed to guardian).
+  - Refund does **not change tuition core status**; it's a parallel sub-flow (see Section 12.3).
+
+**Mandatory Tasks:**
+- At least one payment recorded (7d or 30d or partial).
+- Classes running (attendance logged by teacher for at least 2–3 classes before advancing to COMPLETED).
+
+**Next Status Options:** FEEDBACK (if issue arises, collect additional feedback), COMPLETED (payment cleared + all classes done), CANCELLED (refund + cancel).
+
+**Protocol:** PAYMENT_7D (7–15d), PAYMENT_30D (30–44d), attendance tracking ongoing.
+
+**Ribbon Impact:**
+- **Pay 7 days within next 7 days (including today):** tuitions in PAYMENT status with 7d payment due within 7 days.
+- **Payment Date Over:** tuitions in PAYMENT status where 7d or 30d payment due date exceeded (red alert).
+
+---
+
+#### Status 10: COMPLETED (Successful)
+
+**Entry:** All conditions met for successful completion.
+
+**Criteria:**
+- Payment cleared (total_paid ≥ total_due) or all agreed payments received.
+- All classes completed (attendance confirmed; schedule met).
+- Feedback collected (2nd and 3rd class).
+- No outstanding issues or refund pending.
+
+**Key Actions:**
+- CRO or system marks tuition **COMPLETED**.
+- Tuition removed from active CRO pipeline → moved to **History/Archive**.
+- **Success Rate** updated: `Success Rate = Confirmed ÷ Assigned` (per CRO; see Section 8.1).
+- Guardian and Teacher may rate each other (if not done earlier).
+- **Bonus** paid to teacher (per bonus slab; see Section 12.4).
+
+**Terminal:** Yes. No further transitions allowed.
+
+---
+
+#### Status: CANCELLED
+
+**Entry:** Tuition cancelled at any stage.
+
+**Reasons (logged and visible in Comments/Logs tab):**
+- Guardian cancelled (no longer needs tuition, moved, budget issue).
+- Teacher cancelled (unavailable, conflict).
+- CRO cancelled (duplicate, spam, no suitable tutors after prolonged effort).
+- System cancelled (SLA exceeded, locked, policy violation).
+
+**Key Actions:**
+- CRO selects **Cancel** action → modal pops → select reason + free-text note.
+- If payment already received, **refund flow** may trigger (see PAYMENT status refund handling).
+- Tuition removed from active pipeline → archived in **Cancelled** section.
+- **Ribbon metrics:** does NOT count toward Success Rate; may appear in **Pending exceed count** if cancelled after prolonged delay.
+
+**Terminal:** Yes. No further transitions (except Admin can reopen if mistake).
+
+---
+
+### 2.6 Status Advancement Rules
+
+Status **may advance** only when **all three conditions** are met:
+
+1. **Transition Allowed:** The from→to transition is ✅ in the **Status Transition Matrix** (Section 2.3).
+2. **Mandatory Tasks Complete:** All tasks marked **mandatory** for the current status are **completed** or **skipped with reason** (see Section 3 – Next Task Engine).
+3. **No Active Lock:** No tuition-level, CRO-level, or system-level **lock** is active (see Section 12.5 – Lock Rules), **unless** Admin overrides with audit reason.
+
+**Enforcement:**
+- CRO Console UI **disables** next-status buttons if conditions not met.
+- System logs all status changes with timestamp, actor (CRO/Guardian/Teacher/Admin/System), and reason.
+- **Status Timeline** visible in tuition detail for Guardian/Teacher/CRO/Admin (audit trail).
+
+---
+
+### 2.7 Lifecycle Flow (OperationalSequence)
+
+Below is the **happy-path operational flow** from IP call to successful completion:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant G as Guardian (Caller)
+  participant IP as IP Call Provider
+  participant CRO as CRO/Manager
+  participant SYS as System
+  participant T as Teacher(s)
+  participant SM as Social Media
+  
+  G->>IP: Calls business number
+  IP->>CRO: Inbound call (caller ID)
+  CRO->>SYS: Create Tuition (auto-populate phone)
+  SYS->>SYS: Status = TUITION_DETAILS
+  SYS->>CRO: Show suggested tutors
+  CRO->>SYS: Advance to MESSAGE_TO_TEACHERS
+  SYS->>T: Send SMS/App notification
+  SYS->>SYS: Status = MESSAGE_TO_TEACHERS
+  CRO->>SYS: Advance to POST_IN_SOCIAL_MEDIA
+  SYS->>SM: Post tuition (FB, Insta, WA, Telegram)
+  SYS->>SYS: Status = POST_IN_SOCIAL_MEDIA
+  T->>SYS: Apply to tuition
+  CRO->>SYS: Review applications → Shortlist
+  SYS->>SYS: Status = SHORTLISTED
+  CRO->>SYS: Send Details (CV to guardian)
+  SYS->>G: SMS/App with tutor CV
+  SYS->>T: Guardian contact shared
+  SYS->>SYS: Status = SEND_DETAILS
+  CRO->>G: Call to collect response
+  G->>CRO: "Will meet tutor tomorrow"
+  CRO->>SYS: Log outcome (meeting scheduled)
+  SYS->>SYS: Status = RESPONSE
+  Note over G,T: Demo class happens
+  SYS->>CRO: 7d protocol triggers feedback
+  CRO->>G: Call for 2nd class feedback
+  G->>CRO: "Satisfied, continue"
+  CRO->>SYS: Log feedback (positive)
+  SYS->>SYS: Status = FEEDBACK
+  CRO->>G: "Please confirm tutor"
+  G->>CRO: "Confirmed"
+  SYS->>SYS: Status = GUARDIAN_DECISION
+  CRO->>SYS: Advance to PAYMENT
+  SYS->>G: Payment reminder (7d due)
+  G->>SYS: Pay via SSLCommerz
+  SYS->>SYS: Payment received; RUNNING=true
+  SYS->>SYS: Status = PAYMENT (running)
+  Note over T,G: Classes continue; attendance logged
+  SYS->>CRO: 14d protocol triggers 3rd class feedback
+  CRO->>G: Call for 3rd class feedback
+  G->>CRO: "All good"
+  Note over G,T: All classes done; payment cleared
+  CRO->>SYS: Mark COMPLETED
+  SYS->>SYS: Status = COMPLETED
+  SYS->>T: Calculate & pay bonus
+  SYS->>CRO: Update Success Rate
+```
+
+---
+
+### 2.8 Ribbon Filters & Status Grouping
+
+CRO Console **Ribbon** (Section 8.1) provides quick filters based on status and date/task conditions:
+
+| Ribbon Filter | Logic | Statuses Included |
+|---------------|-------|-------------------|
+| **Today** | Tuitions with tasks due **today** (any status with task.due_date = today) | All non-terminal |
+| **Pending** | Tuitions that **exceed any date** of current status protocol (e.g. RESPONSE with GUARDIAN_DECIDE 30d exceeded) | All non-terminal where protocol exceeded |
+| **Assigned** | All tuitions assigned to this CRO (any non-terminal status) | All non-terminal |
+| **Confirmed** | Tuitions in **GUARDIAN_DECISION → confirmed** or **PAYMENT** (RUNNING=true) | GUARDIAN_DECISION (confirmed), PAYMENT |
+| **Pay 7 days** (within next 7 days) | Tuitions in **PAYMENT** with 7d payment due within next 7 days (including today) | PAYMENT |
+| **Payment Date Over** | Tuitions in **PAYMENT** where 7d or 30d due date **exceeded** | PAYMENT (overdue) |
+| **Date Over** (lifecycle > 60 days) | Tuitions where `created_at` > 60 days ago and still not COMPLETED/CANCELLED (configurable threshold by Admin) | All non-terminal (old) |
+| **Success Rate** | `Confirmed ÷ Assigned` (per CRO; dynamically calculated) | N/A (metric, not filter) |
+
+CRO can **search** tuitions by:
+- **Tuition ID** (9-digit)
+- **Title** (subject/class keyword)
+- **Status** (dropdown: all 11 statuses)
+- **Location/Area** (dropdown)
+- **Date range** (created_at or updated_at)
+
+---
+
+---
+
+## 3. Next Task Engine
+
+The **Next Task Engine** generates and tracks tasks dynamically based on the current tuition **status** and configured **task templates**. Tasks enforce the **status advancement rules** (Section 2.6) and provide actionable checklists for CRO, Guardian, and Teacher.
+
+---
+
+### 3.1 Task Template Schema
+
+Each status may have **one or more task templates** that define what actions must be taken before advancing to the next status.
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `status_id` | Link to status (TUITION_DETAILS, MESSAGE_TO_TEACHERS, etc.) | `TUITION_DETAILS` |
+| `owner_role` | Who must complete the task: `CRO`, `Guardian`, `Teacher`, or `System` | `CRO` |
+| `name` | Short task name (3–7 words) | "Capture tuition details" |
+| `description` | Detailed instructions | "Fill all required tuition form fields (class, subject, area, schedule, salary)." |
+| `protocol_id` | Default time protocol (determines due date) | `IMMEDIATE` (no delay), `RESPONSE_15H` (15 hours), `GUARDIAN_DECIDE` (30 days) |
+| `mandatory` | If `true`, task must be completed (or skipped with reason) to advance status | `true` |
+| `skippable` | If `true`, CRO/Admin can mark "Skip" with reason (e.g. "Guardian unreachable after 3 attempts") | `false` |
+| `order_index` | Display order in task list (ascending) | `1`, `2`, `3` |
+
+---
+
+### 3.2 Task Instance Lifecycle
+
+When a tuition enters a **status**, the system creates **task instances** from the task templates for that status.
+
+```mermaid
+flowchart LR
+  A[Status Change] --> B[Create Task Instances]
+  B --> C[Pending]
+  C --> D[CRO/Guardian/Teacher acts]
+  D --> E{Action?}
+  E -->|Complete| F[Completed]
+  E -->|Skip| G[Skipped with reason]
+  F --> H{All mandatory done?}
+  G --> H
+  H -->|Yes| I[Enable next status]
+  H -->|No| C
+```
+
+**Task States:**
+- **Pending:** Task created, not yet acted upon.
+- **Completed:** Task successfully completed by owner.
+- **Skipped:** Task skipped (only if `skippable = true`); reason logged.
+- **Overdue:** Task due date exceeded (protocol expired); task flagged in ribbon/today view.
+
+**Enforcement:**
+- System **disables** status advance buttons in CRO Console UI until all **mandatory** tasks are **completed** or **skipped** (with valid reason).
+- Overdue tasks appear in **Ribbon → Today** and **Ribbon → Pending** (see Section 2.8).
+
+---
+
+### 3.3 Protocol Catalogue (Baseline – Configurable)
+
+Protocols define **how long** a task owner has to complete a task before it becomes **overdue**.
+
+| Protocol Name | Duration | Use Case | Trigger Event |
+|---------------|----------|----------|---------------|
+| **IMMEDIATE** | 0 (instant) | Tasks that must be done synchronously (e.g. capture tuition details during call) | Status entry |
+| **RESPONSE_15H** | 15 hours | Teacher app/SMS response deadline; CRO follow-up to guardian | Task created |
+| **FEEDBACK_2ND_CLASS** | 7 days | Collect feedback after 2nd class | 2nd class attendance logged |
+| **FEEDBACK_3RD_CLASS** | 14 days | Collect feedback after 3rd class | 3rd class attendance logged |
+| **REFUND_VERIFY** | 15 days | CRO/Finance verify refund application | Refund application submitted |
+| **PAYMENT_7D** | 7–15 days | Pay 7 days payment window (e.g. 7 days from confirmation + 8-day grace) | Tuition confirmed (GUARDIAN_DECISION → PAYMENT) |
+| **PAYMENT_30D** | 30–44 days | Pay 30 days / end-of-month (30 days + 14-day grace) | Classes running (PAYMENT status, RUNNING=true) |
+| **GUARDIAN_DECIDE** | 30 days | Guardian decision deadline (e.g. after demo, after feedback) | RESPONSE or FEEDBACK status entry |
+| **CUSTOM** | Admin-defined | Special tasks with custom SLA (e.g. 2 hours, 3 days, 60 days) | Admin/CRO creates special task |
+
+**Admin Configuration:**
+- Admin can **create/edit/delete** protocols in Admin Console → **Settings → Time Protocols**.
+- Each protocol stores: `name`, `duration_value`, `duration_unit` (hours/days), `max_override` (how much CRO can extend, e.g. +7 days).
+
+---
+
+### 3.4 Default Task Templates (Per Status)
+
+Below are **example task templates** for each status. Admin can customize these in the Admin Console.
+
+#### Status 1: TUITION_DETAILS
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Capture tuition details | CRO | Fill all required tuition form fields: student(s), class, subjects, medium, location, schedule, salary range, special requirements. | IMMEDIATE | ✅ Yes | ❌ No |
+| Store call record | System | Save call recording and summary for playback in Tuition Cockpit → Rec tab. | IMMEDIATE | ✅ Yes | ❌ No |
+| Assign CRO | System/Manager | Assign tuition to CRO (or auto-assign by round-robin/area rules). | IMMEDIATE | ✅ Yes | ❌ No |
+| Review suggested tutors | CRO | Check auto-generated suggested tutor list; confirm list is valid before broadcasting. | IMMEDIATE | ❌ No | ✅ Yes |
+
+---
+
+#### Status 2: MESSAGE_TO_TEACHERS
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Select teacher list | CRO | Choose teachers from suggestions or custom filter (subject, area, medium, verified). | IMMEDIATE | ✅ Yes | ❌ No |
+| Send SMS broadcast | System | Send SMS to selected teachers (via client SMS provider, e.g. Teletalk). | IMMEDIATE | ✅ Yes (if SMS enabled) | ✅ Yes (can skip if app-only) |
+| Send app notification | System | Push tuition notification to Teacher app inbox and push notification. | IMMEDIATE | ✅ Yes (if app enabled) | ✅ Yes (can skip if SMS-only) |
+| Monitor teacher responses | CRO | Check Applications tab for incoming applications within 15h. | RESPONSE_15H | ❌ No | ✅ Yes |
+
+---
+
+#### Status 3: POST_IN_SOCIAL_MEDIA
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Review auto-generated post | CRO | Check social media post text in Suggestions tab; edit if needed. | IMMEDIATE | ✅ Yes | ❌ No |
+| Post to Facebook | CRO | Publish to Facebook page/group (manual or via API). | IMMEDIATE | ✅ Yes (if FB enabled) | ✅ Yes |
+| Post to Instagram | CRO | Publish to Instagram (manual or via API). | IMMEDIATE | ❌ No | ✅ Yes |
+| Post to WhatsApp/Telegram | CRO | Share to WhatsApp groups or Telegram channels. | IMMEDIATE | ❌ No | ✅ Yes |
+| Log post timestamp | System | Record post date/time and channel in tuition record. | IMMEDIATE | ✅ Yes | ❌ No |
+
+---
+
+#### Status 4: SHORTLISTED
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Review applications | CRO | Open Applications tab; review tutor profiles, ratings, experience. | IMMEDIATE | ✅ Yes | ❌ No |
+| Add tutors to shortlist | CRO | Select 2–5 (configurable) top candidates → Add to Shortlist tab. | IMMEDIATE | ✅ Yes | ❌ No (must add at least 1) |
+| Call tutors for availability | CRO | Call shortlisted tutors to confirm availability and interest (optional but recommended). | RESPONSE_15H | ❌ No | ✅ Yes |
+| Reorder shortlist | CRO | Arrange tutors in priority order (best candidate first). | IMMEDIATE | ❌ No | ✅ Yes |
+
+---
+
+#### Status 5: SEND_DETAILS
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Send tutor CV to guardian | System | SMS/app notification with tutor profile link (CV, rating, experience) to guardian. | IMMEDIATE | ✅ Yes | ❌ No |
+| Share guardian contact to tutor | System | SMS/app with guardian primary phone to shortlisted tutor(s). | IMMEDIATE | ✅ Yes | ❌ No |
+| Enable T2G chat | System | Unlock Tutor-Guardian-CRO three-party chat in Tuition Cockpit (if allowed by status rule). | IMMEDIATE | ❌ No | ✅ Yes |
+| Wait for guardian review | CRO | Monitor for guardian response (call, app message, or chat) within 15h–30d (based on guardian availability). | GUARDIAN_DECIDE | ❌ No | ✅ Yes |
+
+---
+
+#### Status 6: RESPONSE
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Call guardian for response | CRO | Outbound call to guardian; collect feedback on tutor CV and schedule demo if agreed. | IMMEDIATE | ✅ Yes | ✅ Yes (skip if guardian called CRO first) |
+| Log call outcome | CRO | After call, fill modal with outcome: No result, Will confirm, Meeting scheduled, Demo arranged, No impact, Will decide later, Switch teacher, Other. | IMMEDIATE | ✅ Yes | ❌ No |
+| Set follow-up date | CRO | If outcome = "Will decide later", set next follow-up date (protocol GUARDIAN_DECIDE = 30d). | GUARDIAN_DECIDE | ✅ Yes (if deferred) | ❌ No |
+| Send app message to teacher | System | Notify teacher of guardian's response (e.g. "Demo scheduled for [date]"). | RESPONSE_15H | ❌ No | ✅ Yes |
+
+---
+
+#### Status 7: FEEDBACK
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Collect guardian feedback (2nd class) | CRO | Call guardian after 2nd class; ask satisfaction, continuation intent, issues. | FEEDBACK_2ND_CLASS (7d) | ✅ Yes | ✅ Yes (skip if guardian unreachable after 3 attempts) |
+| Collect teacher feedback (2nd class) | CRO | Call teacher; ask satisfaction, guardian cooperation, payment status, issues. | FEEDBACK_2ND_CLASS (7d) | ✅ Yes | ✅ Yes |
+| Log feedback (2nd class) | CRO | Record responses in Comments tab or tuition timeline. | IMMEDIATE | ✅ Yes | ❌ No |
+| Collect guardian feedback (3rd class) | CRO | Follow-up call after 3rd class; confirm continuation or switch/terminate. | FEEDBACK_3RD_CLASS (14d) | ✅ Yes | ✅ Yes |
+| Collect teacher feedback (3rd class) | CRO | Follow-up with teacher. | FEEDBACK_3RD_CLASS (14d) | ✅ Yes | ✅ Yes |
+| Log feedback (3rd class) | CRO | Record responses. | IMMEDIATE | ✅ Yes | ❌ No |
+| Decide next action | CRO | Based on feedback: Continue (→ GUARDIAN_DECISION), Switch teacher (→ SHORTLISTED), or Cancel (→ CANCELLED). | IMMEDIATE | ✅ Yes | ❌ No |
+
+---
+
+#### Status 8: GUARDIAN_DECISION
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Call guardian for final decision | CRO | Ask guardian: Confirm tutor / Next teacher / Cancel tuition. | IMMEDIATE | ✅ Yes | ✅ Yes (skip if guardian acted via app) |
+| Log guardian decision | CRO | Record decision in system with timestamp. | IMMEDIATE | ✅ Yes | ❌ No |
+| Notify tutor (if confirmed) | System | SMS/app to tutor: "Guardian confirmed. Classes start soon. Payment reminder sent." | IMMEDIATE | ✅ Yes (if confirmed) | ❌ No |
+| Trigger payment flow | System | Advance tuition to PAYMENT status; create payment tasks (7d, 30d). | IMMEDIATE | ✅ Yes (if confirmed) | ❌ No |
+
+---
+
+#### Status 9: PAYMENT (includes RUNNING)
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Send payment reminder (7d) | System | SMS/app to guardian: "Payment 7 Days due on [date]. Please pay via app or contact CRO." | PAYMENT_7D (7–15d) | ✅ Yes | ❌ No |
+| Record payment (7d) | Finance/CRO | When guardian pays (SSLCommerz or manual Txn ID), mark payment received with amount, date/time. | PAYMENT_7D | ✅ Yes | ❌ No |
+| Start classes (RUNNING=true) | System | Once 7d payment received, set tuition flag RUNNING=true; unlock Teacher attendance tab. | IMMEDIATE | ✅ Yes | ❌ No |
+| Monitor attendance | CRO | Check Attendance tab regularly; ensure teacher logs attendance after each class. | Ongoing | ❌ No | ✅ Yes |
+| Send payment reminder (30d) | System | SMS/app to guardian: "Payment 30 Days due on [date]." | PAYMENT_30D (30–44d) | ✅ Yes | ❌ No |
+| Record payment (30d or partial) | Finance/CRO | Mark subsequent payments (30d, partial, clear) with Txn ID, amount, date/time. | PAYMENT_30D or CUSTOM | ✅ Yes (if due) | ❌ No |
+| Handle refund application (if any) | Finance/CRO | If guardian submits refund: verify within 15d (REFUND_VERIFY protocol) → Admin approves/rejects → disburse if approved. | REFUND_VERIFY (15d) | ✅ Yes (if refund requested) | ❌ No |
+| Confirm payment cleared | Finance | Verify total_paid ≥ total_due; mark payment state "Cleared". | IMMEDIATE | ✅ Yes (to advance to COMPLETED) | ❌ No |
+| Confirm all classes completed | CRO | Check attendance; ensure all scheduled classes done (or contract period ended). | IMMEDIATE | ✅ Yes (to advance to COMPLETED) | ❌ No |
+
+---
+
+#### Status 10: COMPLETED
+
+| Task Name | Owner | Description | Protocol | Mandatory | Skippable |
+|-----------|-------|-------------|----------|-----------|-----------|
+| Calculate teacher bonus | System | Apply bonus slab (Section 12.4) based on tuition amount; add to teacher earnings. | IMMEDIATE | ✅ Yes | ❌ No |
+| Request guardian rating | System | SMS/app to guardian: "Please rate your experience with [teacher name]." | IMMEDIATE | ❌ No | ✅ Yes |
+| Request teacher rating | System | SMS/app to teacher: "Please rate your experience with [guardian name]." | IMMEDIATE | ❌ No | ✅ Yes |
+| Update CRO success rate | System | Increment CRO's Confirmed count; recalculate Success Rate = Confirmed ÷ Assigned. | IMMEDIATE | ✅ Yes | ❌ No |
+| Archive tuition | System | Move tuition from active CRO pipeline to History/Archive section. | IMMEDIATE | ✅ Yes | ❌ No |
+
+---
+
+### 3.5 Special Tasks
+
+In addition to **default status tasks**, CRO or Admin may create **Special Tasks** for unique situations (e.g. escalation, VIP tuition, investigation).
+
+**Special Task Attributes:**
+- **Title:** Custom task name (e.g. "Escalate to Manager", "Call guardian for payment follow-up").
+- **Owner:** CRO, Guardian, Teacher, Manager, Admin.
+- **Priority:** Low / Medium / High / Critical.
+- **Due Date:** Custom date/time (not tied to protocol).
+- **Notes:** Free-text description.
+
+**Where Created:**
+- CRO Console → Tuition Cockpit → **Tasks** tab → **Add Special Task** button.
+
+**Enforcement:**
+- Special tasks do NOT block status advancement (non-mandatory by default).
+- But CRO/Admin can mark a special task as **Blocking** (mandatory) if needed; then status cannot advance until task completed.
+
+---
+
+### 3.6 Task Completion Workflow (CRO Console)
+
+**How CRO completes tasks:**
+
+1. **Open Tuition Cockpit** → **Tasks** tab.
+2. See list of **Next Tasks** (pending for current status):
+   - Task name, owner, due date (protocol-based), mandatory/skippable flag, status (Pending/Completed/Skipped/Overdue).
+3. Complete task:
+   - **Click "Complete"** → task marked Completed; timestamp + actor logged.
+   - **OR Click "Skip"** (if skippable) → modal pops → enter reason → task marked Skipped with reason.
+4. System checks: **Are all mandatory tasks done?**
+   - **Yes** → **Next Status buttons** (e.g. "Advance to SHORTLISTED", "Advance to SEND_DETAILS") become **enabled**.
+   - **No** → buttons remain **disabled**; tooltip shows "Complete mandatory tasks first."
+5. CRO clicks enabled next-status button → status changes → new tasks auto-created for new status.
+
+**Overdue Tasks:**
+- If task due date exceeded (protocol expired), task flagged **Overdue** (red badge).
+- Appears in **Ribbon → Today** (if due today) and **Ribbon → Pending** (if overdue).
+- CRO sees overdue count in ribbon: **"Pending: 12 (3 overdue)"**.
+
+---
+
+### 3.7 Admin Task Template Management
+
+**Admin Console → Settings → Task Templates:**
+
+- **View all task templates** (filterable by status).
+- **Create new template:** Select status, owner role, name, description, protocol, mandatory/skippable flags.
+- **Edit template:** Change name, description, protocol, flags.
+- **Delete template:** Remove template (with confirmation; impacts future tuitions only, not existing).
+- **Default vs Custom:** System provides **default** templates (as listed in Section 3.4); Admin can customize or add org-specific templates.
+
+**Per-Tuition Override:**
+- CRO cannot edit task templates at tuition level (to maintain consistency).
+- But CRO can create **Special Tasks** (Section 3.5) for one-off needs
+
+
+# PART C — PRODUCT VISION & POSITIONING
+
+📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
+
+## 4. Product Vision & Positioning
+
+### 4.1 Vision Statement
 
 **Bright Tutor** is an **operations-first, SLA-driven tuition lifecycle platform** that connects guardians, teachers, and operations teams through a single ecosystem—from lead capture to payment closure—with full auditability and no-code configurability.
 
-### 2.2 Strategic Differentiators
+### 4.2 Strategic Differentiators
 
 | Differentiator       | Description                                                                   |
 | -------------------- | ----------------------------------------------------------------------------- |
@@ -202,7 +987,7 @@ sequenceDiagram
 | **Audit-ready**      | Status changes, payments, refunds, config changes are logged.                 |
 | **Multi-channel**    | Guardian/Teacher apps + CRO/Admin web; data synced in near real-time.         |
 
-### 2.3 High-Level Value Proposition
+### 4.3 High-Level Value Proposition
 
 | Stakeholder  | Value                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------- |
@@ -213,7 +998,7 @@ sequenceDiagram
 
 ---
 
-### 2.4 Channels, Portals & Landing Pages
+### 4.4 Channels, Portals & Landing Pages
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
@@ -246,11 +1031,11 @@ sequenceDiagram
   - **Login as Guardian**: Access to Guardian dashboard (My Tuitions, Payments, Messages).
   - **Login as Teacher**: Access to Teacher web profile, job board, basic payment entries, and chat (when unlocked).
 
-# PART B — ROLES, RBAC & STAKEHOLDERS
+# PART D — ROLES, RBAC & STAKEHOLDERS
 
-## 3. Stakeholders, Roles & Permissions
+## 5. Stakeholders, Roles & Permissions
 
-### 3.1 Role Definitions
+### 5.1 Role Definitions
 
 | Role                              | Definition                                                                                  | Primary Interface |
 | --------------------------------- | ------------------------------------------------------------------------------------------- | ----------------- |
@@ -259,7 +1044,7 @@ sequenceDiagram
 | **CRO**                           | Customer/Conversion/Relationship Officer; owns assigned tuition pipeline, drives lifecycle. | Web Console       |
 | **Admin / Manager / Super Admin** | Configures rules, manages users, approves refunds, views analytics.                         | Web Admin Panel   |
 
-### 3.2 RBAC Permission Matrix
+### 5.2 RBAC Permission Matrix
 
 **Legend:** ✅ Full access | 🔶 Limited/Conditional | ❌ No access
 
@@ -291,10 +1076,10 @@ sequenceDiagram
 | Approve / Reject refund                                  | ❌    | ❌       | ❌      | ❌     | ✅    |
 | View all analytics & exports                             | ❌    | ❌       | ❌      | 🔶     | ✅    |
 
-\*Unlocked only when status allows (e.g. Contact Shared, Demo Scheduled).  
+\*Unlocked only when status allows (e.g. SEND_DETAILS, RESPONSE, FEEDBACK, PAYMENT).  
 \*\*CRO may input payment metadata (Txn ID, date) as per policy; cannot approve refunds.
 
-### 3.3 Role–Module Mapping (Summary Table)
+### 5.3 Role–Module Mapping (Summary Table)
 
 | Module                              | Guardian | Teacher | CRO    | Admin   |
 | ----------------------------------- | -------- | ------- | ------ | ------- |
@@ -315,7 +1100,7 @@ sequenceDiagram
 
 ---
 
-### 3.4 Portal–Role Access Matrix
+### 5.4 Portal–Role Access Matrix
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
@@ -329,13 +1114,13 @@ sequenceDiagram
 - Guardians and Teachers access only their **own** records in P2 and P3 via RBAC.
 - CROs, Admins, Finance, and Staff perform operational work only in the internal console (P4), not in the public apps.
 
-# PART C — SYSTEM ARCHITECTURE & TECHNOLOGY
+# PART E — SYSTEM ARCHITECTURE & TECHNOLOGY
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
-## 4. System Design & Architecture
+## 6. System Design & Architecture
 
-### 4.1 System Context (Actors & System Boundary)
+### 6.1 System Context (Actors & System Boundary)
 
 ```mermaid
 flowchart LR
@@ -365,7 +1150,7 @@ flowchart LR
   BT -->|Post| SOCIAL
 ```
 
-### 4.2 High-Level Component View
+### 6.2 High-Level Component View
 
 ```mermaid
 flowchart TB
@@ -427,7 +1212,7 @@ flowchart TB
   CHAT --> S3
 ```
 
-### 4.3 Logical Service Breakdown
+### 6.3 Logical Service Breakdown
 
 | Service                   | Responsibility                                                          | Key Data                                                    |
 | ------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -441,7 +1226,7 @@ flowchart TB
 | **Config & Rule**         | Status matrix, protocols, payment/refund rules, bonus slabs, lock rules | config_entries, bonus_slabs, system_locks                   |
 | **Analytics & Reporting** | Aggregates, ribbon metrics, reports, exports                            | materialized views, report jobs                             |
 
-### 4.4 Technology Stack & Justification
+### 6.4 Technology Stack & Justification
 
 | Layer              | Choice                              | Why This Stack                                                                           |
 | ------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -466,7 +1251,7 @@ flowchart TB
 | **Monitoring**     | Prometheus + Grafana                | Metrics and dashboards.                                                                  |
 | **Logging**        | ELK or CloudWatch                   | Centralized logs and audit trail.                                                        |
 
-### 4.5 Data Flow (Conceptual)
+### 6.5 Data Flow (Conceptual)
 
 ```mermaid
 flowchart LR
@@ -501,7 +1286,7 @@ flowchart LR
   DB --> EXP
 ```
 
-### 4.6 Deployment Architecture (Simplified)
+### 6.6 Deployment Architecture (Simplified)
 
 ```mermaid
 flowchart TB
@@ -534,13 +1319,13 @@ flowchart TB
 
 ---
 
-# PART D — MODULES & FEATURES (DEEP REQUIREMENTS)
+# PART F — MODULES & FEATURES (DEEP REQUIREMENTS)
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
-## 5. Module Breakdown
+## 7. Module Breakdown
 
-### 5.1 Module Overview Table
+### 7.1 Module Overview Table
 
 | #   | Module                                    | Owner Roles                   | Description                                                |
 | --- | ----------------------------------------- | ----------------------------- | ---------------------------------------------------------- |
@@ -563,9 +1348,9 @@ flowchart TB
 
 ---
 
-## 6. Guardian Domain – Detailed Requirements
+## 8. Guardian Domain – Detailed Requirements
 
-### 6.1 Guardian – Auth & Profile
+### 8.1 Guardian – Auth & Profile
 
 | Req ID    | Requirement                                                                                                                                    | Priority | Notes                             |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
@@ -576,7 +1361,7 @@ flowchart TB
 | G-AUTH-05 | System shall display read-only Guardian stats: total tuitions posted, confirmed, running, trial count, average rating, trust tag (e.g. Green). | Must     | Backend/CRO maintained.           |
 | G-AUTH-06 | System shall associate incoming calls from primary/alternate numbers to correct tuition.                                                       | Must     | Business rule from specs.         |
 
-### 6.2 Guardian – Tuition Posting & Management
+### 8.2 Guardian – Tuition Posting & Management
 
 | Req ID   | Requirement                                                                                                                | Priority | Notes |
 | -------- | -------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
@@ -586,18 +1371,18 @@ flowchart TB
 | G-TUI-04 | Guardian shall open tuition detail: full details, assigned teacher, schedule, status timeline, chat summary, payment card. | Must     |       |
 | G-TUI-05 | System shall show history: status changes, call summary (no full recording), feedback entries.                             | Should   |       |
 
-### 6.3 Guardian – Interaction, Decisions, Feedback
+### 8.3 Guardian – Interaction, Decisions, Feedback
 
 | Req ID   | Requirement                                                                                           | Priority | Notes |
 | -------- | ----------------------------------------------------------------------------------------------------- | -------- | ----- |
 | G-INT-01 | Guardian shall view shortlisted teachers per tuition (profile, rating, experience).                   | Must     |       |
-| G-INT-02 | Guardian shall open chat with teacher only when status allows (e.g. Contact Shared).                  | Must     |       |
+| G-INT-02 | Guardian shall open chat with teacher only when status allows (e.g. SEND_DETAILS, RESPONSE, FEEDBACK).                  | Must     |       |
 | G-INT-03 | Guardian shall see teacher contact (phone) only when unlocked by status.                              | Must     |       |
 | G-INT-04 | Guardian shall be able to Confirm teacher, Request next teacher, or Cancel.                           | Must     |       |
 | G-INT-05 | System shall trigger feedback flows after 2nd class (7-day protocol) and 3rd class (14-day protocol). | Must     |       |
 | G-INT-06 | Guardian shall submit satisfaction feedback, continuation/change/terminate, star rating and comment.  | Must     |       |
 
-### 6.4 Guardian – Payments & Refunds
+### 8.4 Guardian – Payments & Refunds
 
 | Req ID   | Requirement                                                                                                                         | Priority | Notes                                                 |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------- |
@@ -609,9 +1394,9 @@ flowchart TB
 
 ---
 
-## 7. Teacher Domain – Detailed Requirements
+## 9. Teacher Domain – Detailed Requirements
 
-### 7.1 Teacher – Profile & Verification
+### 9.1 Teacher – Profile & Verification
 
 | Req ID   | Requirement                                                                                                                         | Priority | Notes |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
@@ -620,7 +1405,7 @@ flowchart TB
 | T-PRO-03 | System shall show "Verified" badge after admin verification.                                                                        | Must     |       |
 | T-PRO-04 | System shall display: confirmed count, running count, processing count, rating, payment history (Txn ID, date, amount), bonus band. | Must     |       |
 
-### 7.2 Teacher – Discovery & Application
+### 9.2 Teacher – Discovery & Application
 
 | Req ID   | Requirement                                                                                      | Priority | Notes |
 | -------- | ------------------------------------------------------------------------------------------------ | -------- | ----- |
@@ -629,7 +1414,7 @@ flowchart TB
 | T-DIS-03 | Teacher shall apply / show interest; system shall create application and expose to CRO pipeline. | Must     |       |
 | T-DIS-04 | Teacher shall see application status: Applied, Shortlisted, Rejected, Confirmed, Running.        | Must     |       |
 
-### 7.3 Teacher – Communication & Earnings
+### 9.3 Teacher – Communication & Earnings
 
 | Req ID   | Requirement                                                                             | Priority | Notes |
 | -------- | --------------------------------------------------------------------------------------- | -------- | ----- |
@@ -640,9 +1425,9 @@ flowchart TB
 
 ---
 
-## 8. CRO Domain – Detailed Requirements
+## 10. CRO Domain – Detailed Requirements
 
-### 8.1 CRO – Dashboard & Ribbon
+### 10.1 CRO – Dashboard & Ribbon
 
 | Req ID     | Requirement                                                                           | Priority | Notes      |
 | ---------- | ------------------------------------------------------------------------------------- | -------- | ---------- |
@@ -654,15 +1439,15 @@ flowchart TB
 | CRO-RIB-06 | System shall show Success Rate = Confirmed ÷ Assigned Tuitions (per CRO).             | Must     |            |
 | CRO-RIB-07 | Ribbon metrics shall update from status and task engine (near real-time/cache).       | Must     |            |
 
-### 8.1a CRO – Tuition Creation (Lead Capture from Inbound Call)
+### 10.1a CRO – Tuition Creation (Lead Capture from Inbound Call)
 
 | Req ID        | Requirement                                                                                                                                 | Priority | Notes       |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------- |
 | CRO-CREATE-01 | When Manager/CRO receives an inbound call via the **client-provided IP call provider**, the **caller number shall auto-populate** in the Tuition Create form (Guardian phone field). | Must     | MVP/Phase-01. |
 | CRO-CREATE-02 | CRO/Manager shall confirm with guardian whether the number is **personal (primary)** or **optional (alternate)** and set Primary and Alternate phone accordingly. | Must     |             |
-| CRO-CREATE-03 | After filling all required tuition info (student(s), class, subjects, location, schedule, salary, etc.), submission shall create the tuition in status **CREATED** and add it to the CRO pipeline. | Must     |             |
+| CRO-CREATE-03 | After filling all required tuition info (student(s), class, subjects, location, schedule, salary, etc.), submission shall create the tuition in status **TUITION_DETAILS** ([Section 2](#2-status-engine)) and add it to the CRO pipeline. | Must     |             |
 
-### 8.2 CRO – Tuition Cockpit
+### 10.2 CRO – Tuition Cockpit
 
 | Req ID     | Requirement                                                                                                                   | Priority | Notes |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
@@ -674,13 +1459,13 @@ flowchart TB
 | CRO-COK-06 | CRO shall see Guardian and Teacher mini-profiles (name, trust/rating, counts).                                                | Must     |       |
 | CRO-COK-07 | CRO shall change status only when transition is allowed and mandatory tasks complete; system shall enforce lock.              | Must     |       |
 
-#### 8.2.1 Tuition Cockpit Tabs & Actions
+#### 10.2.1 Tuition Cockpit Tabs & Actions
 
 For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit (similar to the UI concept you shared). These tabs centralize all actions and journeys for that specific tuition:
 
 - **Info**
   - Tuition ID, title, class, subjects, medium, area, schedule, salary/budget, protocol tags.
-  - Lifecycle status chip (e.g. Pending/Created, Processing, Confirmed, Running, Paused, Cancelled).
+  - Lifecycle status chip (current status from [Section 2](#2-status-engine): e.g. TUITION_DETAILS, MESSAGE_TO_TEACHERS, SHORTLISTED, SEND_DETAILS, RESPONSE, FEEDBACK, GUARDIAN_DECISION, PAYMENT, COMPLETED, CANCELLED).
   - Flags: **Active/Inactive**, **Featured**, **view count**, **comment count**.
   - Assigned CRO name (e.g. Tanha, Bushra), created/updated timestamps.
 
@@ -719,7 +1504,7 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
   - Used for availability checks, negotiation within rules, and sharing logistics.
 
 - **T2G Chat (Tutor & Guardian Chat)**
-  - Three‑party chat (Tutor + Guardian + CRO), enabled only at allowed statuses (e.g. Contact Shared, Demo Scheduled, Running).
+  - Three‑party chat (Tutor + Guardian + CRO), enabled only at allowed statuses (e.g. SEND_DETAILS, RESPONSE, FEEDBACK, PAYMENT with RUNNING=true).
   - CRO can mute or temporarily lock the channel; all messages are logged against the tuition.
 
 - **Update / Logs**
@@ -733,7 +1518,7 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
   - Per‑tuition attendance summary from Teacher app (date/time, present/absent, notes).
   - MVP may start with read‑only view; later phases can add detailed attendance analytics.
 
-### 8.3 CRO – Communication & Outreach
+### 10.3 CRO – Communication & Outreach
 
 | Req ID     | Requirement                                                                                                                                          | Priority | Notes |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
@@ -744,9 +1529,9 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
 
 ---
 
-## 9. Admin Domain – Detailed Requirements
+## 11. Admin Domain – Detailed Requirements
 
-### 9.1 Admin – Configuration
+### 11.1 Admin – Configuration
 
 | Req ID     | Requirement                                                                                                                     | Priority | Notes                             |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------- |
@@ -757,7 +1542,7 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
 | ADM-CFG-05 | Admin shall edit bonus slabs (min, max, bonus amount); system shall recalc teacher bonus.                                       | Must     |                                   |
 | ADM-CFG-06 | Admin shall define lock rules (triggers, scope) and override unlock with reason (audit).                                        | Must     |                                   |
 
-### 9.2 Admin – Users, Finance, Analytics
+### 11.2 Admin – Users, Finance, Analytics
 
 | Req ID     | Requirement                                                                                                                                 | Priority | Notes |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
@@ -770,162 +1555,9 @@ For each tuition, the CRO sees a **top navigation strip** of tabs in the cockpit
 
 ---
 
-# PART E — ENGINES & STATE MACHINES
+# PART G — PAYMENT, REFUND & BONUS ENGINE
 
-## 10. Status Engine
-
-This section defines the **canonical status machine** for tuition lifecycle.
-
-- The status list remains configurable by Admin and is kept at 10 baseline statuses.
-- Steps such as `tuition_details`, `message_to_teacher`, `post_in_social_media`, `send_details`, `response`, `feedback`, and payment/refund processing are modeled as **tasks/events** inside statuses, not separate terminal statuses.
-- Lifecycle starts when CRO/Manager creates tuition from inbound IP call flow.
-
-### 10.1 Status List (Baseline – Configurable)
-
-| Code                      | Name                      | Badge/Color | Terminal |
-| ------------------------- | ------------------------- | ----------- | -------- |
-| CREATED                   | Created                   | —           | No       |
-| SHORTLISTED               | Shortlisted               | —           | No       |
-| CONTACT_SHARED            | Guardian Contact Shared   | —           | No       |
-| DEMO_SCHEDULED            | Demo Scheduled            | —           | No       |
-| GUARDIAN_DECISION_PENDING | Guardian Decision Pending | —           | No       |
-| CONFIRMED                 | Confirmed                 | —           | No       |
-| PAYMENT_PENDING           | Payment Pending           | No          | No       |
-| RUNNING                   | Running                   | —           | No       |
-| COMPLETED                 | Completed                 | —           | Yes      |
-| CANCELLED                 | Cancelled                 | —           | Yes      |
-
-### 10.2 Status Transition Matrix (Example)
-
-| From \ To                  | SHORTLISTED | CONTACT_SHARED | DEMO_SCHEDULED | GUARDIAN_DECISION_PENDING | CONFIRMED | CANCELLED | RUNNING | COMPLETED |
-| -------------------------- | ----------- | -------------- | -------------- | ------------------------- | --------- | --------- | ------- | --------- |
-| CREATED                    | ✅          | —              | —              | —                         | —         | ✅        | —       | —         |
-| SHORTLISTED                | —           | ✅             | ✅             | —                         | —         | ✅        | —       | —         |
-| CONTACT_SHARED             | ✅          | —              | ✅             | ✅                        | —         | ✅        | —       | —         |
-| DEMO_SCHEDULED             | ✅          | —              | —              | ✅                        | —         | ✅        | —       | —         |
-| GUARDIAN_DECISION_PENDING  | ✅          | —              | —              | —                         | ✅        | ✅        | —       | —         |
-| CONFIRMED                  | —           | —              | —              | —                         | —         | ✅        | ✅      | —         |
-| PAYMENT_PENDING            | —           | —              | —              | —                         | —         | —         | ✅      | —         |
-| RUNNING                    | —           | —              | —              | —                         | —         | ✅        | —       | ✅        |
-
-_Actual matrix is configurable in Admin._
-
-### 10.3 Status Lifecycle Flow (Mermaid)
-
-```mermaid
-stateDiagram-v2
-  [*] --> CREATED
-  CREATED --> SHORTLISTED: CRO shortlists
-  CREATED --> CANCELLED: Cancel
-  SHORTLISTED --> CONTACT_SHARED: Share contact & chat
-  SHORTLISTED --> DEMO_SCHEDULED: Schedule demo
-  SHORTLISTED --> CANCELLED: Cancel
-  CONTACT_SHARED --> DEMO_SCHEDULED: Demo scheduled
-  CONTACT_SHARED --> GUARDIAN_DECISION_PENDING: Await decision
-  CONTACT_SHARED --> SHORTLISTED: Next teacher
-  DEMO_SCHEDULED --> GUARDIAN_DECISION_PENDING: After demo
-  GUARDIAN_DECISION_PENDING --> CONFIRMED: Guardian confirms
-  GUARDIAN_DECISION_PENDING --> SHORTLISTED: Next teacher
-  GUARDIAN_DECISION_PENDING --> CANCELLED: Cancel
-  CONFIRMED --> PAYMENT_PENDING: Payment flow
-  CONFIRMED --> RUNNING: Classes start
-  PAYMENT_PENDING --> RUNNING: Payment received
-  RUNNING --> COMPLETED: All done
-  RUNNING --> CANCELLED: Cancel
-  COMPLETED --> [*]
-  CANCELLED --> [*]
-```
-
-### 10.4 Status Advancement Rule
-
-- Status **may advance** only when:
-  1. All **mandatory** tasks for the current status are **completed** (or skipped where allowed).
-  2. No **lock** is active on the tuition (or CRO/system scope) unless **Admin override** with reason.
-  3. Transition is **allowed** in the configured matrix.
-
-### 10.5 Draft Workflow Mapping (IP Call -> Success)
-
-The following mapping aligns the draft operational flow with the canonical status engine.
-
-| Draft Step (Operational) | Engine Representation | Typical Owner | Protocol / SLA |
-| ------------------------ | -------------------- | ------------- | -------------- |
-| `tuition_details` (from inbound IP call; assign CRO; call summary/record) | Tuition create event -> `CREATED` with mandatory setup tasks | CRO / Manager | Immediate on create |
-| `message_to_teacher` (SMS, app inbox, app push) | Outreach tasks under `CREATED` or `SHORTLISTED` | CRO | Configurable |
-| `post_in_social_media` (FB, Insta, WhatsApp, Telegram) | Outreach tasks under `CREATED` | CRO | Configurable |
-| `shortlisted` | Status -> `SHORTLISTED` | CRO | Per transition rule |
-| `send_details` (share tutor CV + guardian/teacher details) | Task bundle under `SHORTLISTED` -> transition to `CONTACT_SHARED` | CRO | Immediate / configurable |
-| `response` (call guardian, no impact, other notes, switch teacher) | Task + call outcome logs under `CONTACT_SHARED` / `DEMO_SCHEDULED`; may loop back to `SHORTLISTED` | CRO | `RESPONSE_15H`, `GUARDIAN_DECIDE` |
-| `feedback` (2nd class, 3rd class for guardian + teacher) | Mandatory feedback tasks under `RUNNING` | Guardian / Teacher / CRO | `FEEDBACK_2ND_CLASS` (7d), `FEEDBACK_3RD_CLASS` (14d) |
-| `guardian_decision` (confirm / next teacher / cancel) | Status -> `GUARDIAN_DECISION_PENDING` then `CONFIRMED` or back to `SHORTLISTED` or `CANCELLED` | Guardian + CRO | `GUARDIAN_DECIDE` (30d) |
-| `payment` (7d / 30d / partial / clear, SSLCommerz or manual Txn ID) | Status -> `PAYMENT_PENDING`; payment events drive move to `RUNNING` | Guardian / Finance / Admin | `PAYMENT_7D` (7-15d), `PAYMENT_30D` (30-44d) |
-| `refund` (application -> verify -> clear/success) | Refund sub-state machine (see Section 12.3); does not replace tuition core status | Guardian / CRO / Admin | `REFUND_VERIFY` (15d) |
-| `successful` | Tuition terminal success -> `COMPLETED` | System / CRO | End of lifecycle |
-
-### 10.6 Lifecycle Flow (Operational + Status)
-
-```mermaid
-flowchart LR
-  A[Inbound IP Call] --> B[Create Tuition Details]
-  B --> C[CREATED]
-  C --> D[Message to Teachers]
-  C --> E[Post in Social Media]
-  D --> F[SHORTLISTED]
-  E --> F
-  F --> G[Send Details / CV]
-  G --> H[CONTACT_SHARED]
-  H --> I[DEMO_SCHEDULED]
-  H --> J[GUARDIAN_DECISION_PENDING]
-  I --> J
-  J --> K[CONFIRMED]
-  J --> F
-  J --> X[CANCELLED]
-  K --> L[PAYMENT_PENDING]
-  K --> M[RUNNING]
-  L --> M
-  M --> N[Feedback 2nd/3rd Class Tasks]
-  N --> O[COMPLETED]
-  M --> X
-```
-
----
-
-## 11. Next Task Engine
-
-### 11.1 Task Template (Per Status)
-
-| Attribute         | Description                              |
-| ----------------- | ---------------------------------------- |
-| status_id         | Link to status                           |
-| owner_role        | Guardian / Teacher / CRO                 |
-| name, description | Human-readable                           |
-| protocol_id       | Default due (e.g. 7 days from trigger)   |
-| mandatory         | If true, must complete to advance status |
-| skippable         | If true, CRO/Admin can skip with reason  |
-| order_index       | Display order                            |
-
-### 11.2 Task Instance Lifecycle
-
-```mermaid
-flowchart LR
-  P[Pending] --> C[Completed]
-  P --> S[Skipped]
-  C --> OK[Enables status advance if all mandatory done]
-  S --> OK
-```
-
-### 11.3 Protocol Catalogue (Baseline)
-
-| Protocol Name      | Duration   | Use Case                    |
-| ------------------ | ---------- | --------------------------- |
-| RESPONSE_15H       | 15 hours   | App/SMS response deadline   |
-| FEEDBACK_2ND_CLASS | 7 days     | After 2nd class feedback    |
-| FEEDBACK_3RD_CLASS | 14 days    | After 3rd class feedback    |
-| REFUND_VERIFY      | 15 days    | Refund verification         |
-| PAYMENT_7D         | 7–15 days  | Pay 7 days window           |
-| PAYMENT_30D        | 30–44 days | Pay 30 days / EOM           |
-| GUARDIAN_DECIDE    | 30 days    | Guardian will confirm later |
-
----
+📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
 ## 12. Payment & Refund Engine
 
@@ -974,7 +1606,65 @@ stateDiagram-v2
 
 ---
 
-# PART F — USER STORIES & USER JOURNEYS
+### 12.5 Lock Rules & Overload Control
+
+**Purpose:** Prevent CRO/system overload by temporarily **locking** tuitions or CROs when certain thresholds or conditions are breached. Locks **block status advancement** until resolved or overridden by Admin.
+
+#### 12.5.1 Lock Scopes
+
+| Lock Scope | Applies To | Trigger Examples |
+|------------|-----------|------------------|
+| **Tuition-level lock** | Single tuition | Payment overdue > 30 days; refund under investigation; guardian flagged as high-risk; duplicate tuition detected. |
+| **CRO-level lock** | All tuitions assigned to a CRO | CRO assigned > max_tuitions threshold (e.g. 50 active tuitions); CRO on leave; CRO under performance review. |
+| **System-level lock** | All tuitions (global) | Emergency maintenance; policy change pending; major incident (e.g. payment gateway down). |
+
+#### 12.5.2 Lock Triggers (Configurable by Admin)
+
+| Trigger Rule | Lock Scope | Auto Lock? | Example Condition |
+|-------------|------------|------------|-------------------|
+| **Payment Overdue Exceed Threshold** | Tuition | ✅ Yes | Payment 7d or 30d overdue by > 30 days (Admin sets threshold in days). |
+| **CRO Tuition Count Exceed Limit** | CRO | ✅ Yes | CRO has > 50 active (non-terminal) tuitions assigned (Admin sets limit). |
+| **Guardian High-Risk Flag** | Tuition | ❌ Manual | Admin/Finance manually flags guardian as high-risk (e.g. fraud, payment dispute). |
+| **Refund Under Investigation** | Tuition | ✅ Yes (if refund state = VERIFYING and investigation flag set) | Refund amount disputed or suspicious. |
+| **Duplicate Tuition** | Tuition | ❌ Manual | CRO or system detects same guardian posted very similar tuition twice; CRO manually locks one. |
+| **Policy Violation** | Tuition or CRO | ❌ Manual | Admin locks due to policy breach (e.g. unauthorized discount, tutor collusion). |
+
+#### 12.5.3 Lock Behavior
+
+**When a tuition/CRO is locked:**
+
+1. **Status Advance Blocked:** CRO **cannot** advance tuition to next status (even if all mandatory tasks completed).
+   - UI displays **red "Locked" badge** on tuition card and cockpit.
+   - Next-status buttons **disabled** with tooltip: _"Tuition locked due to [reason]. Contact Admin."_
+
+2. **Edit Restricted (optional):** Admin may configure locks to also **block edits** (e.g. cannot change tutor shortlist, cannot log payments).
+
+3. **Visibility:**
+   - **CRO Console:** Locked tuitions appear with 🔒 icon in tuition list; Ribbon may show "Locked: 5 tuitions."
+   - **Admin Console:** Admin sees all locked tuitions in **Analytics → Locked Tuitions** dashboard.
+
+4. **Unlock:**
+   - **Auto-unlock:** If lock was auto-triggered (e.g. payment overdue), system may auto-unlock once condition resolved (e.g. payment received, overdue cleared).
+   - **Manual Admin Override:** Admin can manually **unlock** any tuition/CRO with **reason** (logged in audit trail).
+     - **Admin Console → Locked Tuitions → Select tuition → Unlock → Enter reason** (e.g. "Payment issue resolved", "Guardian verified", "Emergency approval").
+     - Unlock reason **must be entered**; audit log records Admin name, timestamp, reason.
+
+#### 12.5.4 Admin Lock Management
+
+**Admin Console → Settings → Lock Rules:**
+
+- **View Lock Triggers:** List of all lock rules (payment overdue, CRO limit, etc.) with ON/OFF toggle.
+- **Configure Thresholds:** Edit threshold values (e.g. payment overdue threshold = 30 days → change to 45 days).
+- **Create Custom Lock Rule:** Admin can define new triggers (e.g. "Lock if tuition in RESPONSE status > 60 days without advancement").
+- **Manual Lock/Unlock:** Admin can lock/unlock any tuition or CRO manually (with reason).
+
+**Locked Tuitions Dashboard (Admin):**
+
+- Filter: All Locked / Tuition-level / CRO-level / System-level.
+- Columns: Tuition ID, Guardian, CRO, Status, Lock Reason, Locked Since, Actions (Unlock, View Details).
+- Bulk Unlock (Admin only): Select multiple tuitions → Unlock All (confirm + reason).
+
+# PART H — USER STORIES & USER JOURNEYS
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
@@ -1188,38 +1878,39 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  A[Guardian posts tuition] --> B[CREATED]
-  B --> C[CRO broadcasts to teachers]
-  C --> D[Teachers apply]
-  D --> E[CRO shortlists]
-  E --> F[SHORTLISTED]
-  F --> G[Share contact & open chat]
-  G --> H[CONTACT_SHARED]
-  H --> I[Schedule demo]
-  I --> J[DEMO_SCHEDULED]
-  J --> K[Guardian decision]
-  K --> L{Decision?}
-  L -->|Confirm| M[CONFIRMED]
-  L -->|Next teacher| F
-  L -->|Cancel| N[CANCELLED]
-  M --> O[Classes run]
-  O --> P[RUNNING]
-  P --> Q[Feedback 2nd/3rd class]
-  Q --> R[Payment 7d / 30d / partial]
-  R --> S[Payment Clear?]
-  S -->|Yes| T[COMPLETED]
-  S -->|No| P
-  P --> U[Refund requested?]
-  U -->|Yes| V[Refund verify 15d]
-  V --> W[Admin approve/reject]
-  W --> T
-  T --> X[End]
-  N --> X
+  A[Guardian calls → IP call received] --> B[TUITION_DETAILS]
+  B --> C[CRO broadcasts SMS/App]
+  C --> D[MESSAGE_TO_TEACHERS]
+  B --> E[CRO posts social media]
+  E --> F[POST_IN_SOCIAL_MEDIA]
+  D --> G[Teachers apply]
+  F --> G
+  G --> H[CRO reviews applications]
+  H --> I[SHORTLISTED]
+  I --> J[Send tutor CV to guardian]
+  J --> K[SEND_DETAILS]
+  K --> L[CRO calls for response]
+  L --> M[RESPONSE]
+  M --> N[Demo/classes start]
+  N --> O[FEEDBACK: 2nd & 3rd class]
+  O --> P{Guardian decision?}
+  P -->|Confirm| Q[GUARDIAN_DECISION: Confirmed]
+  P -->|Next teacher| I
+  P -->|Cancel| R[CANCELLED]
+  Q --> S[PAYMENT: Pay 7d/30d/Partial/Clear]
+  S --> T[Classes running RUNNING=true]
+  T --> U[Monitor attendance & payment]
+  U --> V{Payment cleared & classes done?}
+  V -->|Yes| W[COMPLETED]
+  V -->|No| T
+  S --> X[Refund requested?]
+  X -->|Yes| Y[Refund verify 15d → Admin approve/reject]
+  Y --> W
+  W --> Z[End: Success]
+  R --> Z1[End: Cancelled]
 ```
 
----
-
-# PART G — NON-FUNCTIONAL & OPERATIONS
+# PART I — NON-FUNCTIONAL &OPERATIONS
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
@@ -1304,7 +1995,7 @@ flowchart TD
 
 ---
 
-# PART H — APPENDICES
+# PART J — APPENDICES
 
 📧 neexg7@gmail.com | 🌐 www.neexg.com | ☎ +880 1743586381
 
@@ -1323,12 +2014,12 @@ flowchart TD
 
 ## Appendix B – Document References
 
-- Figma: Bright Tutor App (Guardian/Teacher flows).
-- Figma: Bright Tutor Admin Panel (CRO + Admin).
-- Internal: Work.pdf (CRO process, tuition lifecycle).
+- Figma Mobile App: https://www.figma.com/proto/DPmjQcGgItttaVnQ58U9Kx/Bright-Tutor-App?page-id=1%3A3&node-id=22199-9064&viewport=4872%2C1670%2C0.06&t=wviRiBGTjNTLcITE-8&scaling=scale-down&content-scaling=fixed&starting-point-node-id=22111%3A37521&hide-ui=1
+- Figma Admin Panel: https://www.figma.com/proto/Ctwmm2AT1BtedgWR1Ny1lC/Bright-Tutor-Admin-Panel?page-id=7706%3A26321&node-id=12096-19076&viewport=-752%2C-2876%2C0.46&t=7qj8f8yvrEDHPw0c-1&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=7777%3A28438
+- Attached reference file: Work.pdf (CRO process, tuition lifecycle).
 - Internal: Documentation.pdf (badge, status, payment, bonus).
 - Internal: Notes, সেকশন (status, chat, payment, bonus, task sequencing).
-- Prior: Master Scope v1.0 draft.
+- Prior baseline: Master Scope v1.0 draft.
 
 ## Appendix C – Revision History
 
