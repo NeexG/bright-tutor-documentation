@@ -670,7 +670,7 @@ sequenceDiagram
   CRO->>SYS: Advance to PAYMENT
   SYS->>G: Payment reminder (7d due)
   G->>SYS: Pay via SSLCommerz
-  SYS->>SYS: Payment received; RUNNING=true
+  SYS->>SYS: Payment received, RUNNING=true
   SYS->>SYS: Status = PAYMENT (running)
   Note over T,G: Classes continue; attendance logged
   SYS->>CRO: 14d protocol triggers 3rd class feedback
